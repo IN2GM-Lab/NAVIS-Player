@@ -1,0 +1,19 @@
+1
+00:00:00,000 --> 00:00:01,000
+Scene starts — hero appears.
+
+2
+00:00:01,000 --> 00:00:02,500
+Camera orbits around the point cloud.
+
+3
+00:00:02,500 --> 00:00:04,000
+Motion slows for a closer look.
+
+4
+00:00:04,000 --> 00:00:06,000
+Viewer toggles explore mode (WASD/QE).
+
+5
+00:00:06,000 --> 00:00:08,000
+Subtitle sample ends; loop restarts.

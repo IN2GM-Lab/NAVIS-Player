@@ -1,0 +1,49 @@
+body {
+  margin: 0;
+  overflow: hidden;
+  font-family: Arial, sans-serif;
+}
+
+/* Loader */
+#loader {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 40%;
+  text-align: center;
+  color: white;
+}
+#loaderBar {
+  height: 10px;
+  background: lime;
+  width: 0%;
+}
+#loaderText {
+  margin-top: 10px;
+}
+
+/* Controls */
+#controls {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  background: rgba(0,0,0,0.45);
+  color: white;
+  padding: 10px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+input[type=range] {
+  flex: 1;
+}
+
+button, select {
+  padding: 5px 10px;
+  border-radius: 5px;
+  border: none;
+}
+

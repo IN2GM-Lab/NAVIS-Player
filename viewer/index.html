@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Dynamic PLY Player</title>
+<style>
+:root {
+    --panel: rgba(10, 13, 22, 0.78);
+    --panel-border: rgba(255, 255, 255, 0.08);
+    --panel-strong: rgba(255, 255, 255, 0.12);
+    --accent: #7cf0e4;
+    --accent-strong: #4da3ff;
+    --text: #e8ecf5;
+    --muted: #9aa7b8;
+    --bg: rgb(229, 230, 241);
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    overflow: hidden;
+    background: var(--bg);
+    font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: var(--text);
+    transition: background 0.6s ease;
+}
+
+body[data-bg="aurora"] {
+    --bg:
+        radial-gradient(120% 120% at 15% 20%, rgba(94, 163, 255, 0.18), rgba(2, 6, 12, 0)),
+        radial-gradient(90% 90% at 80% 10%, rgba(124, 240, 228, 0.14), rgba(2, 6, 12, 0)),
+        #05060b;
+}
+
+body[data-bg="midnight"] {
+    --bg:
+        radial-gradient(160% 140% at 30% 10%, rgba(118, 82, 255, 0.1), rgba(0,0,0,0)),
+        radial-gradient(120% 150% at 80% 60%, rgba(64, 188, 255, 0.12), rgba(0,0,0,0)),
+        #04060d;
+}
+
+body[data-bg="studio"] {
+    --bg:
+        radial-gradient(140% 120% at 50% -10%, rgba(255, 255, 255, 0.08), rgba(0,0,0,0)),
+        linear-gradient(180deg, #0b0d13 0%, #0f121b 100%);
+}
+
+body[data-bg="paper"] {
+    --bg:
+        radial-gradient(220% 200% at 30% 20%, rgba(255, 255, 255, 0.05), rgba(0,0,0,0)),
+        linear-gradient(135deg, #1b1d24 0%, #13151b 60%, #0f1017 100%);
+}
+
+body[data-bg="light"] {
+    --bg: rgb(229, 230, 241);
+}
+
+/* UI themes (accent + panel tone) */
+body[data-ui-theme="sea"] {
+    --panel: rgba(10, 13, 22, 0.78);
+    --panel-border: rgba(255, 255, 255, 0.08);
+    --panel-strong: rgba(255, 255, 255, 0.12);
+    --accent: #7cf0e4;
+    --accent-strong: #4da3ff;
+}
+body[data-ui-theme="citrus"] {
+    --panel: rgba(18, 12, 6, 0.8);
+    --panel-border: rgba(255, 255, 255, 0.08);
+    --panel-strong: rgba(255, 255, 255, 0.14);
+    --accent: #ffb347;
+    --accent-strong: #ff6b2c;
+}
+body[data-ui-theme="violet"] {
+    --panel: rgba(12, 9, 18, 0.82);
+    --panel-border: rgba(255, 255, 255, 0.08);
+    --panel-strong: rgba(255, 255, 255, 0.12);
+    --accent: #c693ff;
+    --accent-strong: #7f5dff;
+}
+body[data-ui-theme="mint"] {
+    --panel: rgba(6, 16, 12, 0.8);
+    --panel-border: rgba(255, 255, 255, 0.08);
+    --panel-strong: rgba(255, 255, 255, 0.12);
+    --accent: #8fffc7;
+    --accent-strong: #3ed0a0;
+}
+
+#hud {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 16px;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(12px);
+    padding: 14px 16px;
+    pointer-events: auto;
+}
+
+#topBar {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    right: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.titleBlock {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.titleBlock .eyebrow {
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 11px;
+    color: var(--muted);
+}
+
+.titleBlock .title {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.titleBlock .subtitle {
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.statusRow {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+.pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--panel-border);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+    font-size: 12px;
+}
+
+.pill.small {
+    padding: 6px 8px;
+    font-size: 11px;
+}
+
+.pill[data-kind="playing"] {
+    border-color: rgba(124, 240, 228, 0.45);
+    background: rgba(124, 240, 228, 0.12);
+    color: var(--accent);
+}
+
+.pill[data-kind="paused"] {
+    border-color: var(--panel-border);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.pill[data-kind="buffering"] {
+    border-color: rgba(255, 214, 102, 0.35);
+    background: rgba(255, 214, 102, 0.16);
+    color: #ffd266;
+}
+
+#controlPanel {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    right: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.primaryControls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.inlineLabel {
+    font-size: 12px;
+    color: var(--muted);
+    margin-left: 6px;
+}
+
+.compactSelect {
+    padding: 8px 10px;
+    font-size: 12px;
+    min-width: 90px;
+}
+
+.timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.timelineMeta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.controlBlock {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.controlBlock .subtle {
+    color: var(--muted);
+    font-size: 11px;
+}
+
+.controlBlock label {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 0.01em;
+}
+
+.rotationControls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+}
+
+.rotRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.rotRow span {
+    font-weight: 700;
+    font-size: 12px;
+    color: var(--text);
+}
+
+.actionsRow {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.topActions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    width: 100%;
+}
+
+.advancedPanel {
+    position: absolute;
+    top: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(1100px, calc(100% - 32px));
+    max-height: 60vh;
+    overflow-y: auto;
+    display: none;
+    gap: 12px;
+    backdrop-filter: blur(12px);
+    background: rgba(0, 0, 0, 0.38);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+    border-radius: 16px;
+    pointer-events: auto;
+    z-index: 15;
+}
+
+.advancedPanel.open {
+    display: block;
+}
+
+.advancedHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.advancedGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+}
+
+.advancedGroup {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.advancedGroup .title {
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+
+.advancedGroup .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.advancedGroup .row label {
+    flex: 1;
+    color: var(--text);
+}
+
+.valueBadge {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 4px 8px;
+    font-size: 11px;
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+}
+
+.devInfo {
+    position: absolute;
+    top: 50%;
+    left: 12px;
+    transform: translateY(-50%);
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--panel-border);
+    background: rgba(0, 0, 0, 0.42);
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1.4;
+    pointer-events: none;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+    display: none;
+    z-index: 18;
+}
+
+.devInfo .line {
+    display: flex;
+    gap: 6px;
+}
+
+.devInfo .label {
+    color: var(--muted);
+    min-width: 74px;
+}
+
+.devInfo .value {
+    font-weight: 600;
+    color: var(--text);
+}
+
+button, select {
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text);
+    padding: 10px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: transform 0.08s ease, box-shadow 0.1s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+button:hover, select:hover {
+    border-color: var(--panel-strong);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+button:active {
+    transform: translateY(1px);
+}
+
+button.primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+    color: #041019;
+    font-weight: 700;
+    border: none;
+}
+
+button.ghost {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+button.small {
+    padding: 8px 10px;
+    font-size: 12px;
+}
+
+input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 8px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 0%, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.16) 100%);
+}
+
+input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #0a0d16;
+    border: 2px solid var(--accent);
+    box-shadow: 0 0 0 6px rgba(124, 240, 228, 0.15);
+}
+
+input[type=range]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #0a0d16;
+    border: 2px solid var(--accent);
+    box-shadow: 0 0 0 6px rgba(124, 240, 228, 0.15);
+}
+
+select {
+    background-image: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.08));
+}
+
+select option {
+    background: #0c0f1a;
+    color: #e8ecf5;
+}
+
+select option:checked {
+    background: #162438;
+    color: #e8ecf5;
+}
+
+input[type=color] {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 6px;
+    height: 36px;
+    cursor: pointer;
+}
+
+.hotkeys {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    font-size: 12px;
+    color: var(--muted);
+    border-top: 1px dashed var(--panel-border);
+    padding-top: 8px;
+}
+
+#loader {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: clamp(260px, 40vw, 420px);
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+    display: none;
+    z-index: 20;
+}
+
+#loaderBar {
+    width: 0%;
+    height: 10px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+}
+
+#loaderTrack {
+    width: 100%;
+    height: 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    margin-bottom: 8px;
+    border: 1px solid var(--panel-border);
+}
+
+#loaderText {
+    font-size: 13px;
+    color: var(--text);
+    text-align: center;
+}
+
+.subtitles {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: min(80vw, 960px);
+    text-align: center;
+    line-height: 1.5;
+    color: #f5f7fb;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.6);
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.38);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    pointer-events: none;
+    z-index: 18;
+    display: none;
+}
+
+@media (max-width: 720px) {
+    #topBar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .primaryControls {
+        justify-content: center;
+    }
+    .topActions {
+        justify-content: flex-start;
+    }
+}
+</style>
+</head>
+
+<body data-bg="light" data-ui-theme="sea">
+<div id="devInfo" class="devInfo"></div>
+
+<!-- LOADER -->
+<div id="loader">
+    <div id="loaderTrack">
+        <div id="loaderBar"></div>
+    </div>
+    <div id="loaderText">Loading...</div>
+</div>
+
+<!-- UI -->
+<div id="hud">
+    <div id="topBar" class="panel">
+        <div class="titleBlock">
+            <div class="eyebrow">Dynamic PLY Player</div>
+            <div class="title">Point cloud sequence</div>
+            <div class="subtitle">Modern controls, clearer status, quicker navigation</div>
+        </div>
+        <div class="statusRow">
+            <div class="topActions">
+                <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted);">
+                    <span>Video</span>
+                    <select id="sequenceSelect" class="compactSelect" style="min-width:220px;">
+                        <option value="ready">Ready for Winter (UVG)</option>
+                        <option value="custom">Custom (advanced)</option>
+                    </select>
+                </label>
+                <button id="selectFolderBtn" class="ghost small">📂 Choose folder</button>
+                <input id="sequenceFolder" type="file" webkitdirectory directory multiple style="display:none;">
+                <button id="resetVideo" class="ghost small">🔄 Reset video</button>
+                <button id="viewModeToggle" class="ghost small">Mode: Orbit (object)</button>
+                <button id="resetView" class="ghost small">Reset view</button>
+                <button id="fullscreen" class="ghost small">⛶ Fullscreen</button>
+                <button id="advancedToggle" class="ghost small">✨ Show advanced</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="controlPanel" class="panel">
+        <div class="primaryControls">
+            <button id="back10" class="ghost small">⏪ -10f</button>
+            <button id="prevFrame" class="ghost small">◀ 1f</button>
+            <button id="playPause" class="primary">▶ Play</button>
+            <label class="inlineLabel" for="speed">Speed</label>
+            <select id="speed" class="compactSelect">
+                <option value="0.25">0.25x</option>
+                <option value="0.5" selected>0.5x</option>
+                <option value="0.75">0.75x</option>
+                <option value="1">1x</option>
+                <option value="1.5">1.5x</option>
+                <option value="2">2x</option>
+                <option value="3">3x</option>
+            </select>
+            <button id="nextFrame" class="ghost small">1f ▶</button>
+            <button id="forward10" class="ghost small">10f ⏩</button>
+            <button id="loop" class="ghost small">🔁 Loop: ON</button>
+        </div>
+
+        <div class="timeline">
+            <input id="slider" type="range" min="0" max="249" value="0">
+            <div class="timelineMeta">
+                <span id="frameLabel">Frame 0 / 249</span>
+                <span id="speedBadge" class="pill small">Speed 0.5x</span>
+            </div>
+        </div>
+
+        <div class="hotkeys">
+            <span>Space play/pause</span>
+            <span>←/→ step frame</span>
+            <span>Shift+←/→ skip 10f</span>
+            <span>F fullscreen</span>
+            <span>R reset view</span>
+            <span>L loop toggle</span>
+            <span>Click + move mouse to look (Explore mode)</span>
+            <span>WASD move, Z/C down/up (Explore mode)</span>
+            <span>Q/E roll, Shift boost, Ctrl precision (Explore mode)</span>
+        </div>
+    </div>
+</div>
+
+<div id="subtitles" class="subtitles"></div>
+
+<!-- Advanced drawer -->
+<div id="advancedPanel" class="advancedPanel panel">
+    <div class="advancedHeader">
+        <div class="titleBlock">
+            <div class="eyebrow">Advanced tuning</div>
+            <div class="title">Tailor navigation, buffering, and look</div>
+            <div class="subtitle">Adjust settings while the cloud stays visible</div>
+        </div>
+    </div>
+    <div class="advancedGrid">
+        <div class="advancedGroup">
+            <div class="title">Video source</div>
+            <div class="row">
+                <label for="basePath">Base path (prefix)</label>
+            </div>
+            <input id="basePath" type="text" value="frames_clean/ReadyForWinter_UVG_vox10_25_0_250_" placeholder="frames_clean/Sequence_">
+            <div class="row">
+                <label for="totalFrames">Total frames</label>
+                <span class="valueBadge" id="totalFramesValue">250</span>
+            </div>
+            <input id="totalFrames" type="number" min="1" max="2000" step="1" value="250">
+            <div class="row">
+                <label for="padLength">Pad digits</label>
+                <span class="valueBadge" id="padLengthValue">4</span>
+            </div>
+            <input id="padLength" type="number" min="1" max="6" step="1" value="4">
+            <p class="subtle">Example file: <code>basePath + 0000.ply</code></p>
+        </div>
+        <div class="advancedGroup">
+            <div class="title">Navigation feel</div>
+            <div class="row">
+                <label for="flyBaseSpeed">Base speed</label>
+                <span class="valueBadge" id="flyBaseSpeedValue">3.2</span>
+            </div>
+            <input id="flyBaseSpeed" type="range" min="0.5" max="12" step="0.1" value="3.2">
+            <div class="row">
+                <label for="flyBoostMult">Boost (Shift)</label>
+                <span class="valueBadge" id="flyBoostMultValue">3.0x</span>
+            </div>
+            <input id="flyBoostMult" type="range" min="1" max="6" step="0.1" value="3">
+            <div class="row">
+                <label for="flySlowMult">Precision (Ctrl)</label>
+                <span class="valueBadge" id="flySlowMultValue">0.35x</span>
+            </div>
+            <input id="flySlowMult" type="range" min="0.1" max="1" step="0.05" value="0.35">
+            <div class="row">
+                <label for="lookSensitivity">Look sensitivity</label>
+                <span class="valueBadge" id="lookSensitivityValue">2.2</span>
+            </div>
+            <input id="lookSensitivity" type="range" min="0.8" max="4" step="0.1" value="2.2">
+        </div>
+
+        <div class="advancedGroup">
+            <div class="title">Streaming</div>
+            <div class="row">
+                <label for="startBuffer">Start after</label>
+                <span class="valueBadge" id="startBufferValue">30 f</span>
+            </div>
+            <input id="startBuffer" type="range" min="1" max="120" step="1" value="30">
+            <div class="row">
+                <label for="prefetchAhead">Prefetch ahead</label>
+                <span class="valueBadge" id="prefetchAheadValue">30 f</span>
+            </div>
+            <input id="prefetchAhead" type="range" min="5" max="150" step="5" value="30">
+            <div class="row">
+                <label for="keepBehind">Keep behind</label>
+                <span class="valueBadge" id="keepBehindValue">5 f</span>
+            </div>
+            <input id="keepBehind" type="range" min="0" max="50" step="1" value="5">
+            <div class="row">
+                <label for="maxCache">Cache cap</label>
+                <span class="valueBadge" id="maxCacheValue">250</span>
+            </div>
+            <input id="maxCache" type="range" min="50" max="400" step="10" value="250">
+            <div class="row">
+                <label for="maxConcurrency">Max concurrency</label>
+                <span class="valueBadge" id="maxConcurrencyValue">8</span>
+            </div>
+            <input id="maxConcurrency" type="range" min="1" max="16" step="1" value="8">
+        </div>
+
+        <div class="advancedGroup">
+            <div class="title">Rendering & look</div>
+            <div class="row">
+                <label for="colorMode">Color mode</label>
+                <select id="colorMode">
+                    <option value="source">Vertex colors</option>
+                    <option value="greyscale">Greyscale</option>
+                    <option value="mono">Monochrome</option>
+                </select>
+            </div>
+            <div class="row">
+                <label for="downsample">Downsample</label>
+                <span class="valueBadge" id="downsampleValue">100%</span>
+            </div>
+            <input id="downsample" type="range" min="0.1" max="1" step="0.05" value="1">
+            <div class="row">
+                <label for="backgroundTheme">Backdrop</label>
+                <select id="backgroundTheme">
+                    <option value="light">Light</option>
+                    <option value="aurora">Aurora</option>
+                    <option value="midnight">Midnight</option>
+                    <option value="studio">Studio</option>
+                    <option value="paper">Paper</option>
+                    <option value="custom">Custom</option>
+                </select>
+            </div>
+            <div class="row">
+                <label for="backgroundColor">BG color (custom)</label>
+                <input id="backgroundColor" type="color" value="#e5e6f1">
+            </div>
+            <div class="row">
+                <label for="uiTheme">UI theme</label>
+                <select id="uiTheme">
+                    <option value="sea">Seafoam</option>
+                    <option value="citrus">Citrus</option>
+                    <option value="violet">Violet</option>
+                    <option value="mint">Mint</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="advancedGroup">
+            <div class="title">Point cloud</div>
+            <div class="row">
+                <label for="pointSize">Point size</label>
+                <span class="valueBadge" id="pointSizeValue">0.01</span>
+            </div>
+            <input id="pointSize" type="range" min="0.001" max="0.05" step="0.001" value="0.01">
+            <label class="row" style="align-items:center; gap:8px;">
+                <input id="normalizeToggle" type="checkbox" checked>
+                <span>Normalize each frame (center + scale)</span>
+            </label>
+            <label class="row" style="align-items:center; gap:8px;">
+                <input id="floorToggle" type="checkbox" checked>
+                <span>Show floor plane</span>
+            </label>
+            <label class="row" style="align-items:center; gap:8px;">
+                <input id="devInfoToggle" type="checkbox">
+                <span>Show dev info overlay</span>
+            </label>
+        </div>
+
+        <div class="advancedGroup">
+            <div class="title">Subtitles</div>
+            <div class="row">
+                <label for="subtitleFile">Load VTT/SRT</label>
+            </div>
+            <input id="subtitleFile" type="file" accept=".vtt,.srt,.txt">
+            <div class="row">
+                <label for="subtitleFps">Subtitle FPS</label>
+                <span class="valueBadge" id="subtitleFpsValue">30</span>
+            </div>
+            <input id="subtitleFps" type="number" min="1" max="120" step="1" value="30">
+            <div class="row">
+                <label for="subtitlePosition">Position</label>
+                <select id="subtitlePosition">
+                    <option value="bottom">Bottom</option>
+                    <option value="top">Top</option>
+                </select>
+            </div>
+            <div class="row">
+                <label for="subtitleColor">Text color</label>
+                <input id="subtitleColor" type="color" value="#f5f7fb" style="padding:4px; height:32px;">
+            </div>
+            <div class="row">
+                <label for="subtitleSize">Text size</label>
+                <span class="valueBadge" id="subtitleSizeValue">18px</span>
+            </div>
+            <input id="subtitleSize" type="range" min="12" max="36" step="1" value="18">
+            <p class="subtle">Displayed based on current frame / FPS.</p>
+        </div>
+    </div>
+</div>
+
+<script src="js/three.min.js"></script>
+<script src="js/OrbitControls.js"></script>
+<script src="js/player.js"></script>
+
+</body>
+</html>
