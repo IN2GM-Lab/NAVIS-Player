@@ -5,8 +5,8 @@ Open the page in a modern browser, choose a folder of `.ply` frames from your fi
 
 ## Get the code
 ```bash
-git clone https://github.com/Jazkiel/Dynamic_PLY_Renderder.git
-cd Dynamic_PLY_Renderder
+git clone https://github.com/IN2GM-Lab/NAVIS-Player.git
+cd NAVIS-Player
 ```
 
 ## Features
