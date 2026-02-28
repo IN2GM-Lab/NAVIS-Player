@@ -73,3 +73,44 @@ Located under **“Show advanced”**:
 - Blank scene: check pad digits/base prefix in **Advanced → Video source** and ensure frames are selected.
 - Folder picker blocked: try Chrome/Edge.
 - Slow loads: lower concurrency or prefetch/cache; downsample for lighter renders.
+
+## License
+
+NAVIS is open-source software released under the Apache License 2.0.  
+See the `LICENSE` file for full details.
+
+## Contributing
+
+Contributions are welcome.  
+Feel free to open an issue or submit a pull request for bug fixes, improvements, or new features.
+
+By contributing, you agree that your contributions will be licensed under Apache 2.0.
+
+## Citation
+
+If you use NAVIS in your research, please cite our paper:
+
+## ACM Reference Format
+
+```text
+Sidhu, J. S., Ouellette, J., and Bentaleb, A. 2026.
+NAVIS: Web-Native Interactive Visualization of Dynamic Point-Cloud Video.
+In Proceedings of the 17th ACM Multimedia Systems Conference 2026 (MMSys '26),
+April 4-8, 2026, Hong Kong, Hong Kong. ACM, New York, NY, USA, 6 pages.
+https://doi.org/10.1145/3793853.3798192
+```
+
+### BibTeX
+
+```bibtex
+@inproceedings{sidhu2026navis,
+  author    = {Sidhu, Jashanjot Singh and Ouellette, J{\'e}r{\'e}my and Bentaleb, Abdelhak},
+  title     = {NAVIS: Web-Native Interactive Visualization of Dynamic Point-Cloud Video},
+  booktitle = {Proceedings of the 17th ACM Multimedia Systems Conference 2026 (MMSys '26)},
+  year      = {2026},
+  month     = apr,
+  address   = {Hong Kong, Hong Kong},
+  publisher = {ACM},
+  doi       = {10.1145/3793853.3798192}
+}
+```
