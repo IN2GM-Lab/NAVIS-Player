@@ -1,52 +1,1356 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>NAVIS: Browser-Based PLY Player</title>
-    <style>
-        /* Full-screen styling */
-        html, body {
-            margin: 0;
-            padding: 0;
-            height: 100%;
-            font-family: Arial, sans-serif;
-            background-color: #000;
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NAVIS — Web-Native Point Cloud Video Player</title>
+  <meta name="description" content="NAVIS is a browser-native volumetric media player for interactive 6DoF playback of dynamic PLY point-cloud sequences using WebGL. No plugins required." />
 
-        /* Full-screen iframe video player */
-        iframe {
-            width: 100%;
-            height: 95%;
-            border: none;
-        }
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
-        /* Message styling for the bottom */
-        .coming-soon {
-            position: relative;
-            bottom: 0;
-            width: 100%;
-            text-align: center;
-            z-index: 100;
-            color: #fff;
-            font-size: 24px;
-            background-color: rgba(0, 0, 0, 0.7);
-            padding: 20px;
-            box-sizing: border-box;
-            font-weight: bold;
-            border-radius: 10px 10px 0 0;
-        }
-    </style>
+  <style>
+    /* ─── Reset & base ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #050810;
+      --surface:   #0c1225;
+      --surface2:  #111a35;
+      --border:    rgba(99,179,255,.13);
+      --accent:    #3adfff;
+      --accent2:   #7b6fff;
+      --accent3:   #ff6fff;
+      --text:      #e8f0ff;
+      --muted:     #7a8db3;
+      --radius:    12px;
+      --glow:      0 0 40px rgba(58,223,255,.18);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
+      line-height: 1.65;
+    }
+
+    /* ─── Animated particle canvas ─────────────────────────────────── */
+    #particles {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      opacity: .55;
+    }
+
+    /* ─── Nav ───────────────────────────────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2.5rem;
+      height: 64px;
+      background: rgba(5,8,16,.75);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .nav-logo {
+      font-size: 1.35rem;
+      font-weight: 800;
+      letter-spacing: .05em;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      text-decoration: none;
+      color: var(--muted);
+      font-size: .9rem;
+      font-weight: 500;
+      transition: color .2s;
+    }
+    .nav-links a:hover { color: var(--accent); }
+
+    .nav-cta {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .45rem 1.1rem;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #000 !important;
+      font-weight: 700 !important;
+      font-size: .88rem !important;
+      transition: opacity .2s, transform .15s !important;
+    }
+    .nav-cta:hover { opacity: .88; transform: translateY(-1px); }
+
+    /* ─── Shared layout ─────────────────────────────────────────────── */
+    section { position: relative; z-index: 1; }
+
+    .container {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 2rem;
+    }
+
+    .section-label {
+      display: inline-block;
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: .75rem;
+    }
+
+    h2.section-title {
+      font-size: clamp(1.7rem, 3.5vw, 2.4rem);
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+
+    .section-sub {
+      font-size: 1.05rem;
+      color: var(--muted);
+      max-width: 620px;
+    }
+
+    /* ─── Hero ──────────────────────────────────────────────────────── */
+    #hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      padding: 100px 0 60px;
+    }
+
+    .hero-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+      align-items: center;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      font-size: .78rem;
+      font-weight: 600;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      padding: .35rem .9rem;
+      border-radius: 100px;
+      border: 1px solid rgba(58,223,255,.3);
+      background: rgba(58,223,255,.07);
+      color: var(--accent);
+      margin-bottom: 1.4rem;
+    }
+
+    .hero-badge .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:.4; transform:scale(1.3); }
+    }
+
+    h1.hero-title {
+      font-size: clamp(2.4rem, 5.5vw, 4rem);
+      font-weight: 800;
+      line-height: 1.1;
+      margin-bottom: 1.2rem;
+    }
+
+    .hero-title .grad {
+      background: linear-gradient(100deg, var(--accent) 0%, var(--accent2) 55%, var(--accent3) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-desc {
+      font-size: 1.1rem;
+      color: var(--muted);
+      margin-bottom: 2.2rem;
+      max-width: 500px;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 3rem;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .75rem 1.6rem;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: .95rem;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #000;
+      text-decoration: none;
+      transition: transform .15s, box-shadow .15s;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(58,223,255,.35); }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .75rem 1.6rem;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: .95rem;
+      background: transparent;
+      border: 1px solid rgba(255,255,255,.15);
+      color: var(--text);
+      text-decoration: none;
+      transition: border-color .2s, background .2s;
+    }
+    .btn-secondary:hover { border-color: var(--accent); background: rgba(58,223,255,.06); }
+
+    .hero-stats {
+      display: flex;
+      gap: 2rem;
+    }
+
+    .stat {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 800;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .stat-label {
+      font-size: .78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .1em;
+    }
+
+    /* Hero visual — point cloud card */
+    .hero-visual {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .pc-card {
+      position: relative;
+      width: 100%;
+      max-width: 480px;
+      border-radius: 20px;
+      border: 1px solid rgba(58,223,255,.2);
+      overflow: hidden;
+      background: var(--surface);
+      box-shadow: 0 24px 80px rgba(58,223,255,.12), 0 0 0 1px rgba(58,223,255,.08);
+    }
+
+    .pc-card-header {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .8rem 1.2rem;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .dot-red   { width:11px;height:11px;border-radius:50%;background:#ff5f57; }
+    .dot-yel   { width:11px;height:11px;border-radius:50%;background:#febc2e; }
+    .dot-grn   { width:11px;height:11px;border-radius:50%;background:#28c840; }
+
+    .pc-canvas-wrapper {
+      position: relative;
+      height: 300px;
+      overflow: hidden;
+    }
+
+    #heroCanvas { width:100%;height:100%;display:block; }
+
+    .pc-card-footer {
+      padding: .85rem 1.2rem;
+      background: var(--surface2);
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .play-btn {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .play-btn svg { margin-left: 2px; }
+
+    .timeline {
+      flex: 1;
+      height: 4px;
+      background: rgba(255,255,255,.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .timeline-progress {
+      height: 100%;
+      width: 35%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 2px;
+      animation: progress 4s linear infinite;
+    }
+
+    @keyframes progress {
+      0%   { width: 0%; }
+      100% { width: 100%; }
+    }
+
+    .frame-count {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .75rem;
+      color: var(--muted);
+    }
+
+    /* ─── Demo Video ─────────────────────────────────────────────────── */
+    #demo {
+      padding: 5rem 0;
+    }
+
+    .demo-header {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+
+    .video-wrapper {
+      position: relative;
+      width: 100%;
+      max-width: 900px;
+      margin: 0 auto;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(58,223,255,.2);
+      box-shadow: 0 32px 100px rgba(58,223,255,.12);
+    }
+
+    .video-wrapper iframe {
+      display: block;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      border: none;
+    }
+
+    /* ─── Features ───────────────────────────────────────────────────── */
+    #features {
+      padding: 5rem 0;
+    }
+
+    .features-header {
+      margin-bottom: 3.5rem;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      transition: border-color .25s, transform .2s;
+    }
+
+    .feature-card:hover {
+      border-color: rgba(58,223,255,.4);
+      transform: translateY(-3px);
+    }
+
+    .feature-icon {
+      width: 44px; height: 44px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.3rem;
+      margin-bottom: 1.1rem;
+    }
+
+    .icon-cyan   { background: rgba(58,223,255,.12); }
+    .icon-purple { background: rgba(123,111,255,.12); }
+    .icon-pink   { background: rgba(255,111,255,.12); }
+    .icon-green  { background: rgba(58,255,148,.12); }
+    .icon-orange { background: rgba(255,165,58,.12); }
+    .icon-blue   { background: rgba(58,100,255,.12); }
+
+    .feature-card h3 {
+      font-size: 1.05rem;
+      font-weight: 700;
+      margin-bottom: .5rem;
+    }
+
+    .feature-card p {
+      font-size: .9rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ─── Controls quick-ref ─────────────────────────────────────────── */
+    #controls {
+      padding: 5rem 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .controls-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3rem;
+      align-items: start;
+    }
+
+    .key-list {
+      display: flex;
+      flex-direction: column;
+      gap: .65rem;
+      margin-top: 1.5rem;
+    }
+
+    .key-row {
+      display: flex;
+      align-items: center;
+      gap: .85rem;
+    }
+
+    .key-row kbd {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .78rem;
+      font-weight: 600;
+      padding: .25rem .6rem;
+      border-radius: 6px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.12);
+      white-space: nowrap;
+      min-width: 54px;
+      text-align: center;
+      color: var(--accent);
+    }
+
+    .key-row span {
+      font-size: .88rem;
+      color: var(--muted);
+    }
+
+    .controls-code {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      margin-top: 1.5rem;
+    }
+
+    .controls-code pre {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .83rem;
+      color: #a0c8ff;
+      white-space: pre-wrap;
+      line-height: 1.7;
+    }
+
+    .code-comment { color: var(--muted); }
+    .code-cmd     { color: var(--accent); }
+    .code-arg     { color: var(--accent3); }
+
+    /* ─── Paper / Citation ───────────────────────────────────────────── */
+    #paper {
+      padding: 5rem 0;
+    }
+
+    .paper-card {
+      background: var(--surface);
+      border: 1px solid rgba(58,223,255,.2);
+      border-radius: 18px;
+      padding: 2.5rem;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 2.5rem;
+      align-items: start;
+    }
+
+    .paper-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      padding: .28rem .8rem;
+      border-radius: 100px;
+      background: linear-gradient(135deg, rgba(58,223,255,.15), rgba(123,111,255,.15));
+      border: 1px solid rgba(58,223,255,.25);
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 1rem;
+    }
+
+    .paper-title {
+      font-size: 1.4rem;
+      font-weight: 800;
+      margin-bottom: .75rem;
+      line-height: 1.3;
+    }
+
+    .paper-authors {
+      font-size: .95rem;
+      color: var(--muted);
+      margin-bottom: .4rem;
+    }
+
+    .paper-venue {
+      font-size: .88rem;
+      color: var(--accent2);
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+    }
+
+    .paper-doi a {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .82rem;
+      color: var(--accent);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(58,223,255,.3);
+      transition: border-color .2s;
+    }
+    .paper-doi a:hover { border-color: var(--accent); }
+
+    .bibtex-box {
+      position: relative;
+      min-width: 360px;
+    }
+
+    .bibtex-label {
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: .6rem;
+    }
+
+    .bibtex-code {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.2rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .76rem;
+      line-height: 1.75;
+      color: #a0c8ff;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    .bibtex-key   { color: var(--accent2); }
+    .bibtex-value { color: #ff9ecc; }
+    .bibtex-brace { color: var(--accent); }
+
+    .copy-btn {
+      position: absolute;
+      top: 2.2rem; right: .6rem;
+      padding: .3rem .75rem;
+      border-radius: 7px;
+      font-size: .72rem;
+      font-weight: 600;
+      background: rgba(58,223,255,.1);
+      border: 1px solid rgba(58,223,255,.25);
+      color: var(--accent);
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .copy-btn:hover { background: rgba(58,223,255,.2); }
+    .copy-btn.copied { color: #28c840; border-color: #28c840; background: rgba(40,200,64,.1); }
+
+    /* ─── Getting Started ────────────────────────────────────────────── */
+    #start {
+      padding: 5rem 0;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.5rem;
+      margin-top: 2.5rem;
+    }
+
+    .step {
+      position: relative;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.6rem;
+    }
+
+    .step-number {
+      font-size: 2.5rem;
+      font-weight: 900;
+      line-height: 1;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: .85rem;
+    }
+
+    .step h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: .5rem;
+    }
+
+    .step p {
+      font-size: .87rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .step code {
+      display: block;
+      margin-top: .75rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .78rem;
+      color: var(--accent);
+      background: rgba(58,223,255,.07);
+      border: 1px solid rgba(58,223,255,.15);
+      border-radius: 6px;
+      padding: .6rem .85rem;
+    }
+
+    /* ─── Authors ────────────────────────────────────────────────────── */
+    #authors {
+      padding: 5rem 0;
+    }
+
+    .authors-grid {
+      display: flex;
+      gap: 2rem;
+      flex-wrap: wrap;
+      margin-top: 2.5rem;
+    }
+
+    .author-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1.2rem;
+      transition: border-color .25s;
+    }
+    .author-card:hover { border-color: rgba(58,223,255,.4); }
+
+    .author-avatar {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent2), var(--accent3));
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800;
+      font-size: 1.1rem;
+      color: #fff;
+      flex-shrink: 0;
+    }
+
+    .author-name {
+      font-weight: 700;
+      font-size: 1rem;
+    }
+
+    .author-role {
+      font-size: .83rem;
+      color: var(--muted);
+      margin-top: .15rem;
+    }
+
+    /* ─── CTA ────────────────────────────────────────────────────────── */
+    #cta {
+      padding: 6rem 0;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #cta::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 70% 60% at 50% 50%, rgba(58,223,255,.07) 0%, transparent 70%);
+    }
+
+    .cta-inner { position: relative; }
+
+    #cta h2 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 800;
+      margin-bottom: 1rem;
+    }
+
+    #cta p {
+      font-size: 1.05rem;
+      color: var(--muted);
+      margin-bottom: 2.2rem;
+    }
+
+    /* ─── Footer ─────────────────────────────────────────────────────── */
+    footer {
+      position: relative;
+      z-index: 1;
+      border-top: 1px solid var(--border);
+      padding: 2rem;
+      text-align: center;
+      font-size: .83rem;
+      color: var(--muted);
+    }
+
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    /* ─── Section dividers ────────────────────────────────────────────── */
+    .glow-line {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: .25;
+    }
+
+    /* ─── Responsive ─────────────────────────────────────────────────── */
+    @media (max-width: 860px) {
+      .hero-inner       { grid-template-columns: 1fr; }
+      .hero-visual      { display: none; }
+      .paper-card       { grid-template-columns: 1fr; }
+      .bibtex-box       { min-width: 0; }
+      .controls-grid    { grid-template-columns: 1fr; }
+      .nav-links        { display: none; }
+    }
+  </style>
 </head>
+
 <body>
+  <!-- Animated particle background -->
+  <canvas id="particles"></canvas>
 
-    <!-- Full-screen iframe video player -->
-    <!-- <iframe src="https://drive.google.com/file/d/13OsQ_-DmGv6hVEFP-migZT9zsl-JmAFm/preview" allow="autoplay"></iframe> -->
-    <iframe src="https://drive.google.com/file/d/1H6lsAtP0CQ6hERxCvPfJ8PBbqtR_ziUJ/preview" allow="autoplay"></iframe>
-<div class="coming-soon">
-        ⏳ The code is available on our github!
+  <!-- ─── Navigation ──────────────────────────────────────────────────── -->
+  <nav>
+    <div class="nav-logo">NAVIS</div>
+    <ul class="nav-links">
+      <li><a href="#demo">Demo</a></li>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#controls">Controls</a></li>
+      <li><a href="#paper">Paper</a></li>
+      <li><a href="#start">Get Started</a></li>
+    </ul>
+    <a href="https://github.com/IN2GM-Lab/NAVIS-Player" target="_blank" rel="noopener" class="nav-links" style="text-decoration:none;">
+      <a href="https://github.com/IN2GM-Lab/NAVIS-Player" target="_blank" rel="noopener" class="nav-cta">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+        GitHub
+      </a>
+    </a>
+  </nav>
+
+  <!-- ─── Hero ──────────────────────────────────────────────────────── -->
+  <section id="hero">
+    <div class="container">
+      <div class="hero-inner">
+        <!-- Text -->
+        <div>
+          <div class="hero-badge">
+            <span class="dot"></span>
+            MMSys 2026 &nbsp;·&nbsp; ACM
+          </div>
+          <h1 class="hero-title">
+            Point&nbsp;Cloud&nbsp;Video<br>
+            <span class="grad">in your Browser.</span>
+          </h1>
+          <p class="hero-desc">
+            NAVIS is a <strong>browser-native volumetric media player</strong> for interactive 6DoF playback
+            of dynamic PLY point-cloud sequences — powered by WebGL, Web Workers, and zero plugins.
+          </p>
+          <div class="hero-actions">
+            <a href="https://github.com/IN2GM-Lab/NAVIS-Player" target="_blank" rel="noopener" class="btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+              Get the Code
+            </a>
+            <a href="#demo" class="btn-secondary">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="10,8 16,12 10,16"/></svg>
+              Watch Demo
+            </a>
+            <a href="#paper" class="btn-secondary">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+              Read the Paper
+            </a>
+          </div>
+          <div class="hero-stats">
+            <div class="stat">
+              <span class="stat-value">WebGL</span>
+              <span class="stat-label">GPU Rendering</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">6DoF</span>
+              <span class="stat-label">Free Navigation</span>
+            </div>
+            <div class="stat">
+              <span class="stat-value">0</span>
+              <span class="stat-label">Dependencies</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Visual card -->
+        <div class="hero-visual">
+          <div class="pc-card">
+            <div class="pc-card-header">
+              <div class="dot-red"></div>
+              <div class="dot-yel"></div>
+              <div class="dot-grn"></div>
+            </div>
+            <div class="pc-canvas-wrapper">
+              <canvas id="heroCanvas"></canvas>
+            </div>
+            <div class="pc-card-footer">
+              <div class="play-btn">
+                <svg width="12" height="12" fill="#000" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+              </div>
+              <div class="timeline"><div class="timeline-progress"></div></div>
+              <span class="frame-count">0250 frames</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+  </section>
 
+  <!-- ─── Demo Video ────────────────────────────────────────────────── -->
+  <div class="glow-line"></div>
+  <section id="demo">
+    <div class="container">
+      <div class="demo-header">
+        <span class="section-label">Live Demo</span>
+        <h2 class="section-title">See NAVIS in Action</h2>
+        <p class="section-sub" style="margin:0 auto;">
+          Watch 6DoF point-cloud video playback running entirely in the browser — orbit, fly, scrub, and explore volumetric scenes with no native app required.
+        </p>
+      </div>
+      <div class="video-wrapper">
+        <iframe
+          src="https://drive.google.com/file/d/1H6lsAtP0CQ6hERxCvPfJ8PBbqtR_ziUJ/preview"
+          allow="autoplay"
+          allowfullscreen
+          title="NAVIS Point Cloud Player Demo Video">
+        </iframe>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Features ─────────────────────────────────────────────────── -->
+  <div class="glow-line"></div>
+  <section id="features">
+    <div class="container">
+      <div class="features-header">
+        <span class="section-label">Features</span>
+        <h2 class="section-title">Everything you need for<br>volumetric playback</h2>
+        <p class="section-sub">
+          A full-featured research-grade player built entirely on open web standards — no plugins, no native code, no server-side processing.
+        </p>
+      </div>
+      <div class="features-grid">
+
+        <div class="feature-card">
+          <div class="feature-icon icon-cyan">🌐</div>
+          <h3>100% Browser-Native</h3>
+          <p>Runs on WebGL + Web Workers entirely in the browser. Works in Chrome and Edge with no installation, no plugins, and no server-side rendering.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-purple">🔒</div>
+          <h3>Local-First & Private</h3>
+          <p>Pick a folder of <code>.ply</code> frames from your filesystem via the browser File System Access API. Your data never leaves your machine.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-pink">🚀</div>
+          <h3>Parallel Streaming Engine</h3>
+          <p>Web Worker-based PLY parser with configurable prefetch-ahead, keep-behind, cache cap, and concurrency — balancing latency against memory.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-green">🎮</div>
+          <h3>Dual Navigation Modes</h3>
+          <p><strong>Orbit</strong> for object-centric inspection. <strong>Explore</strong> for WASD/QE first-person flying with roll, boost, precision, and mouse-wheel speed control.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-orange">🎨</div>
+          <h3>Rich Rendering Controls</h3>
+          <p>Point size, downsample ratio, per-frame normalization, color modes (source / greyscale / mono), floor plane, and light/dark UI themes.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-blue">📊</div>
+          <h3>Performance HUD</h3>
+          <p>Optional dev overlay showing point count, frame index, parse/render timings, memory usage, HMD position/angle, and fly speed in real-time.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-cyan">🎬</div>
+          <h3>Full Playback Controls</h3>
+          <p>Play/pause, single-frame step (±1 and ±10), loop toggle, variable playback speed, and a timeline scrubber for instant frame access.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-purple">💬</div>
+          <h3>Subtitle Support</h3>
+          <p>Load <code>.vtt</code> or <code>.srt</code> files and sync captions to frame index. Customize FPS mapping, position, font size, and color.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon icon-pink">⚡</div>
+          <h3>Open Source · Apache 2.0</h3>
+          <p>Fully open source, freely available for research and commercial use. Contributions, issues, and pull requests are welcome on GitHub.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Controls ─────────────────────────────────────────────────── -->
+  <div class="glow-line"></div>
+  <section id="controls">
+    <div class="container">
+      <div class="controls-grid">
+        <div>
+          <span class="section-label">Keyboard Controls</span>
+          <h2 class="section-title" style="font-size:1.9rem;">Navigate with ease</h2>
+          <p class="section-sub">Designed for researchers and media creators who need precise control over every frame and viewpoint.</p>
+          <div class="key-list">
+            <div class="key-row"><kbd>Space</kbd><span>Play / Pause</span></div>
+            <div class="key-row"><kbd>← / →</kbd><span>Step ±1 frame &nbsp;(Shift = ±10)</span></div>
+            <div class="key-row"><kbd>W A S D</kbd><span>Fly forward / strafe (Explore mode)</span></div>
+            <div class="key-row"><kbd>Q / E</kbd><span>Roll camera</span></div>
+            <div class="key-row"><kbd>Z / C</kbd><span>Fly down / up</span></div>
+            <div class="key-row"><kbd>Shift</kbd><span>Speed boost</span></div>
+            <div class="key-row"><kbd>Ctrl</kbd><span>Precision movement</span></div>
+            <div class="key-row"><kbd>R</kbd><span>Reset view</span></div>
+            <div class="key-row"><kbd>F</kbd><span>Toggle fullscreen</span></div>
+          </div>
+        </div>
+        <div>
+          <span class="section-label">Quick Start</span>
+          <h2 class="section-title" style="font-size:1.9rem;">Up in 30 seconds</h2>
+          <p class="section-sub">Serve the player locally, then pick your frames — no build step, no npm.</p>
+          <div class="controls-code">
+            <pre><span class="code-comment"># Clone the repo</span>
+<span class="code-cmd">git</span> <span class="code-arg">clone</span> https://github.com/IN2GM-Lab/NAVIS-Player.git
+<span class="code-cmd">cd</span> NAVIS-Player/viewer
+
+<span class="code-comment"># Serve with Python (or any HTTP server)</span>
+<span class="code-cmd">python3</span> <span class="code-arg">-m http.server 8000</span>
+
+<span class="code-comment"># Open in Chrome or Edge</span>
+<span class="code-cmd">open</span> http://localhost:8000
+
+<span class="code-comment"># Then click "Choose folder" and</span>
+<span class="code-comment"># select your .ply frame directory.</span></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Paper ────────────────────────────────────────────────────── -->
+  <div class="glow-line"></div>
+  <section id="paper">
+    <div class="container">
+      <span class="section-label">Publication</span>
+      <h2 class="section-title">Research &amp; Citation</h2>
+      <p class="section-sub" style="margin-bottom:2.5rem;">
+        NAVIS was presented at ACM MMSys 2026 in Hong Kong. If you use this work in your research, please cite our paper.
+      </p>
+
+      <div class="paper-card">
+        <!-- Left: paper info -->
+        <div>
+          <div class="paper-badge">
+            <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+            ACM MMSys '26
+          </div>
+          <p class="paper-title">NAVIS: Web-Native Interactive Visualization of Dynamic Point-Cloud Video</p>
+          <p class="paper-authors">Jashanjot Singh Sidhu &nbsp;·&nbsp; Jérémy Ouellette &nbsp;·&nbsp; Abdelhak Bentaleb</p>
+          <p class="paper-venue">17th ACM Multimedia Systems Conference &nbsp;·&nbsp; April 4–8, 2026 &nbsp;·&nbsp; Hong Kong</p>
+          <p class="paper-doi">
+            <span style="color:var(--muted);font-size:.85rem;margin-right:.5rem;">DOI</span>
+            <a href="https://doi.org/10.1145/3793853.3798192" target="_blank" rel="noopener">10.1145/3793853.3798192</a>
+          </p>
+          <div style="margin-top:1.5rem;display:flex;gap:.85rem;flex-wrap:wrap;">
+            <a href="https://doi.org/10.1145/3793853.3798192" target="_blank" rel="noopener" class="btn-primary" style="font-size:.85rem;padding:.55rem 1.2rem;">
+              <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+              Read Paper
+            </a>
+            <a href="https://github.com/IN2GM-Lab/NAVIS-Player" target="_blank" rel="noopener" class="btn-secondary" style="font-size:.85rem;padding:.55rem 1.2rem;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+              Source Code
+            </a>
+          </div>
+        </div>
+
+        <!-- Right: BibTeX -->
+        <div class="bibtex-box">
+          <p class="bibtex-label">BibTeX Citation</p>
+          <div style="position:relative;">
+            <pre class="bibtex-code" id="bibtexBlock"><span class="bibtex-brace">@inproceedings{</span><span class="bibtex-key">sidhu2026navis</span><span class="bibtex-brace">,</span>
+  <span class="bibtex-key">author</span>    = {<span class="bibtex-value">Sidhu, Jashanjot Singh and
+               Ouellette, J{\'e}r{\'e}my and
+               Bentaleb, Abdelhak</span>},
+  <span class="bibtex-key">title</span>     = {<span class="bibtex-value">NAVIS: Web-Native Interactive
+               Visualization of Dynamic
+               Point-Cloud Video</span>},
+  <span class="bibtex-key">booktitle</span> = {<span class="bibtex-value">MMSys '26</span>},
+  <span class="bibtex-key">year</span>      = {<span class="bibtex-value">2026</span>},
+  <span class="bibtex-key">month</span>     = <span class="bibtex-value">apr</span>,
+  <span class="bibtex-key">address</span>   = {<span class="bibtex-value">Hong Kong</span>},
+  <span class="bibtex-key">publisher</span> = {<span class="bibtex-value">ACM</span>},
+  <span class="bibtex-key">doi</span>       = {<span class="bibtex-value">10.1145/3793853.3798192</span>}
+<span class="bibtex-brace">}</span></pre>
+            <button class="copy-btn" id="copyBtn" onclick="copyBibtex()">Copy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Getting Started ───────────────────────────────────────────── -->
+  <div class="glow-line"></div>
+  <section id="start">
+    <div class="container">
+      <span class="section-label">Getting Started</span>
+      <h2 class="section-title">From clone to playback<br>in four steps</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">01</div>
+          <h3>Clone the repo</h3>
+          <p>Get the source from GitHub. No build system or package manager required.</p>
+          <code>git clone https://github.com/IN2GM-Lab/NAVIS-Player.git</code>
+        </div>
+        <div class="step">
+          <div class="step-number">02</div>
+          <h3>Start a local server</h3>
+          <p>Browsers block <code>file://</code> Workers. Any HTTP server works — Python ships with one.</p>
+          <code>cd viewer && python3 -m http.server 8000</code>
+        </div>
+        <div class="step">
+          <div class="step-number">03</div>
+          <h3>Open in Chrome or Edge</h3>
+          <p>Navigate to localhost. The player loads instantly — no login, no account needed.</p>
+          <code>http://localhost:8000</code>
+        </div>
+        <div class="step">
+          <div class="step-number">04</div>
+          <h3>Choose your .ply folder</h3>
+          <p>Click <strong>Choose folder</strong>, select your frame directory, and press play. Frames are named sequentially: <code>Name_0000.ply</code>, <code>Name_0001.ply</code>, …</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Authors ───────────────────────────────────────────────────── -->
+  <div class="glow-line"></div>
+  <section id="authors">
+    <div class="container">
+      <span class="section-label">Authors</span>
+      <h2 class="section-title">The Team</h2>
+      <p class="section-sub">NAVIS was developed as part of research at <strong>IN2GM Lab</strong>.</p>
+      <div class="authors-grid">
+        <div class="author-card">
+          <div class="author-avatar" style="background:linear-gradient(135deg,#3adfff,#7b6fff);">JS</div>
+          <div>
+            <div class="author-name">Jashanjot Singh Sidhu</div>
+            <div class="author-role">IN2GM Lab</div>
+          </div>
+        </div>
+        <div class="author-card">
+          <div class="author-avatar" style="background:linear-gradient(135deg,#7b6fff,#ff6fff);">JO</div>
+          <div>
+            <div class="author-name">Jérémy Ouellette</div>
+            <div class="author-role">IN2GM Lab</div>
+          </div>
+        </div>
+        <div class="author-card">
+          <div class="author-avatar" style="background:linear-gradient(135deg,#ff6fff,#3adfff);">AB</div>
+          <div>
+            <div class="author-name">Abdelhak Bentaleb</div>
+            <div class="author-role">IN2GM Lab</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── CTA ───────────────────────────────────────────────────────── -->
+  <div class="glow-line"></div>
+  <section id="cta">
+    <div class="container cta-inner">
+      <h2>Ready to visualize point clouds<br>in your browser?</h2>
+      <p>Open source · No installation · Runs anywhere Chrome runs</p>
+      <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
+        <a href="https://github.com/IN2GM-Lab/NAVIS-Player" target="_blank" rel="noopener" class="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/></svg>
+          Get NAVIS on GitHub
+        </a>
+        <a href="#paper" class="btn-secondary">Cite the Paper</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── Footer ────────────────────────────────────────────────────── -->
+  <footer>
+    <p>
+      NAVIS is open-source software released under the
+      <a href="https://github.com/IN2GM-Lab/NAVIS-Player/blob/main/LICENSE" target="_blank" rel="noopener">Apache License 2.0</a>.
+      &nbsp;·&nbsp;
+      <a href="https://doi.org/10.1145/3793853.3798192" target="_blank" rel="noopener">ACM Digital Library</a>
+      &nbsp;·&nbsp;
+      <a href="https://github.com/IN2GM-Lab/NAVIS-Player" target="_blank" rel="noopener">GitHub</a>
+    </p>
+    <p style="margin-top:.5rem;font-size:.77rem;">
+      &copy; 2026 Sidhu, Ouellette, Bentaleb &nbsp;·&nbsp; IN2GM Lab
+    </p>
+  </footer>
+
+  <!-- ─── Scripts ───────────────────────────────────────────────────── -->
+  <script>
+  // ── Particle / point-cloud background ─────────────────────────────
+  (function() {
+    const canvas = document.getElementById('particles');
+    const ctx = canvas.getContext('2d');
+    let W, H, pts;
+
+    function resize() {
+      W = canvas.width  = window.innerWidth;
+      H = canvas.height = window.innerHeight;
+    }
+
+    function mkPts(n) {
+      pts = [];
+      for (let i = 0; i < n; i++) {
+        pts.push({
+          x:  Math.random() * W,
+          y:  Math.random() * H,
+          z:  Math.random(),          // depth
+          vx: (Math.random() - .5) * .25,
+          vy: (Math.random() - .5) * .15,
+          hue: 180 + Math.random() * 80,  // cyan → blue
+        });
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, W, H);
+      const t = Date.now() / 1000;
+      pts.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0) p.x = W;
+        if (p.x > W) p.x = 0;
+        if (p.y < 0) p.y = H;
+        if (p.y > H) p.y = 0;
+
+        const alpha = .25 + p.z * .55;
+        const size  = .8 + p.z * 2.2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${p.hue}, 90%, 70%, ${alpha})`;
+        ctx.fill();
+      });
+
+      // Draw some thin connecting lines between nearby points
+      for (let i = 0; i < pts.length; i++) {
+        for (let j = i + 1; j < pts.length; j++) {
+          const dx = pts[i].x - pts[j].x;
+          const dy = pts[i].y - pts[j].y;
+          const d  = Math.sqrt(dx*dx + dy*dy);
+          if (d < 100) {
+            ctx.beginPath();
+            ctx.moveTo(pts[i].x, pts[i].y);
+            ctx.lineTo(pts[j].x, pts[j].y);
+            ctx.strokeStyle = `rgba(58,223,255,${.04 * (1 - d/100)})`;
+            ctx.lineWidth = .5;
+            ctx.stroke();
+          }
+        }
+      }
+
+      requestAnimationFrame(draw);
+    }
+
+    resize();
+    mkPts(120);
+    draw();
+    window.addEventListener('resize', () => { resize(); mkPts(120); });
+  })();
+
+  // ── Hero canvas — animated point cloud preview ─────────────────────
+  (function() {
+    const canvas = document.getElementById('heroCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let pts = [];
+    const N = 1800;
+
+    function resize() {
+      canvas.width  = canvas.offsetWidth  * devicePixelRatio;
+      canvas.height = canvas.offsetHeight * devicePixelRatio;
+      ctx.scale(devicePixelRatio, devicePixelRatio);
+    }
+
+    function genCloud() {
+      pts = [];
+      for (let i = 0; i < N; i++) {
+        // Rough humanoid blob
+        const r = Math.random();
+        let x, y, z;
+        if (r < .15) {
+          // Head
+          const a = Math.random()*Math.PI*2, b = Math.random()*Math.PI;
+          x = .5 + .08*Math.sin(b)*Math.cos(a);
+          y = .22 + .09*Math.cos(b);
+        } else if (r < .55) {
+          // Torso
+          x = .5 + (Math.random()-.5)*.2;
+          y = .42 + Math.random()*.28;
+        } else if (r < .75) {
+          // Arms
+          const side = Math.random() < .5 ? -1 : 1;
+          x = .5 + side*(.12 + Math.random()*.12);
+          y = .45 + Math.random()*.25;
+        } else {
+          // Legs
+          const side = Math.random() < .5 ? -.06 : .06;
+          x = .5 + side + (Math.random()-.5)*.07;
+          y = .72 + Math.random()*.22;
+        }
+        x += (Math.random()-.5)*.04;
+        y += (Math.random()-.5)*.03;
+        z = Math.random();
+        const hue = 170 + z * 120;
+        pts.push({ ox:x, oy:y, x, y, z, hue });
+      }
+    }
+
+    function project(px, py, angle) {
+      const cx = .5, cz = .0;
+      const dx = px - cx;
+      const rx = dx*Math.cos(angle) - cz*Math.sin(angle);
+      return cx + rx;
+    }
+
+    function draw() {
+      const W = canvas.offsetWidth;
+      const H = canvas.offsetHeight;
+      ctx.clearRect(0, 0, W, H);
+
+      const angle = Date.now() / 4000;
+
+      // Sort by z for painter's algorithm
+      const sorted = pts.slice().sort((a,b) => a.z - b.z);
+
+      sorted.forEach(p => {
+        const px = project(p.ox, p.oy, angle);
+        const sx = px * W;
+        const sy = p.oy * H;
+        const size = .6 + p.z * 2;
+        const alpha = .5 + p.z * .5;
+        ctx.beginPath();
+        ctx.arc(sx, sy, size, 0, Math.PI*2);
+        ctx.fillStyle = `hsla(${p.hue},85%,65%,${alpha})`;
+        ctx.fill();
+      });
+
+      requestAnimationFrame(draw);
+    }
+
+    resize();
+    genCloud();
+    draw();
+    const ro = new ResizeObserver(() => { resize(); });
+    ro.observe(canvas);
+  })();
+
+  // ── BibTeX copy ───────────────────────────────────────────────────
+  function copyBibtex() {
+    const raw = `@inproceedings{sidhu2026navis,
+  author    = {Sidhu, Jashanjot Singh and Ouellette, J{\\'{e}}r{\\'{e}}my and Bentaleb, Abdelhak},
+  title     = {NAVIS: Web-Native Interactive Visualization of Dynamic Point-Cloud Video},
+  booktitle = {Proceedings of the 17th ACM Multimedia Systems Conference 2026 (MMSys '26)},
+  year      = {2026},
+  month     = apr,
+  address   = {Hong Kong, Hong Kong},
+  publisher = {ACM},
+  doi       = {10.1145/3793853.3798192}
+}`;
+    navigator.clipboard.writeText(raw).then(() => {
+      const btn = document.getElementById('copyBtn');
+      btn.textContent = 'Copied!';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+    });
+  }
+
+  // ── Smooth nav highlight ──────────────────────────────────────────
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.nav-links a');
+  window.addEventListener('scroll', () => {
+    let cur = '';
+    sections.forEach(s => { if (window.scrollY >= s.offsetTop - 100) cur = s.id; });
+    navLinks.forEach(a => {
+      a.style.color = a.getAttribute('href') === '#'+cur ? 'var(--accent)' : '';
+    });
+  }, { passive: true });
+  </script>
 </body>
 </html>
