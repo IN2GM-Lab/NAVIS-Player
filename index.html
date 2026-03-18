@@ -366,14 +366,114 @@
       overflow: hidden;
       border: 1px solid rgba(58,223,255,.2);
       box-shadow: 0 32px 100px rgba(58,223,255,.12);
+      aspect-ratio: 16 / 9;
+      background: var(--surface);
     }
 
+    /* Poster / click-to-play state */
+    .video-poster {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1.2rem;
+      cursor: pointer;
+      background:
+        radial-gradient(ellipse 60% 55% at 50% 50%, rgba(58,223,255,.07) 0%, transparent 70%),
+        linear-gradient(160deg, #0c1225 0%, #050810 100%);
+      transition: background .3s;
+      user-select: none;
+    }
+    .video-poster:hover { background:
+        radial-gradient(ellipse 60% 55% at 50% 50%, rgba(58,223,255,.13) 0%, transparent 70%),
+        linear-gradient(160deg, #0c1225 0%, #050810 100%); }
+
+    /* Animated scan-line shimmer on poster */
+    .video-poster::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        rgba(58,223,255,.018) 3px,
+        rgba(58,223,255,.018) 4px
+      );
+      pointer-events: none;
+    }
+
+    .video-poster-title {
+      font-size: .8rem;
+      font-weight: 700;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    /* Big play button */
+    .play-circle {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 0 0 rgba(58,223,255,.4);
+      animation: playPulse 2.2s ease-in-out infinite;
+      transition: transform .2s;
+      flex-shrink: 0;
+    }
+    .video-poster:hover .play-circle { transform: scale(1.08); }
+    .play-circle svg { margin-left: 5px; }
+
+    @keyframes playPulse {
+      0%,100% { box-shadow: 0 0 0 0   rgba(58,223,255,.4); }
+      50%      { box-shadow: 0 0 0 22px rgba(58,223,255,0); }
+    }
+
+    .video-poster-hint {
+      font-size: .78rem;
+      color: var(--muted);
+      opacity: .7;
+    }
+
+    /* Spinner shown while iframe is loading after click */
+    .video-spinner {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface);
+    }
+    .video-spinner.active { display: flex; }
+
+    .spinner-ring {
+      width: 48px;
+      height: 48px;
+      border: 3px solid rgba(58,223,255,.15);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Iframe fades in after load */
     .video-wrapper iframe {
+      position: absolute;
+      inset: 0;
       display: block;
       width: 100%;
-      aspect-ratio: 16 / 9;
+      height: 100%;
       border: none;
+      opacity: 0;
+      transition: opacity .45s ease;
     }
+    .video-wrapper iframe.loaded { opacity: 1; }
 
     /* ─── Features ───────────────────────────────────────────────────── */
     #features {
@@ -877,13 +977,19 @@
           Watch 6DoF point-cloud video playback running entirely in the browser — orbit, fly, scrub, and explore volumetric scenes with no native app required.
         </p>
       </div>
-      <div class="video-wrapper">
-        <iframe
-          src="https://drive.google.com/file/d/1H6lsAtP0CQ6hERxCvPfJ8PBbqtR_ziUJ/preview"
-          allow="autoplay"
-          allowfullscreen
-          title="NAVIS Point Cloud Player Demo Video">
-        </iframe>
+      <div class="video-wrapper" id="videoWrapper">
+        <!-- Poster shown until user clicks -->
+        <div class="video-poster" id="videoPoster" onclick="loadVideo()" role="button" aria-label="Play NAVIS demo video">
+          <span class="video-poster-title">NAVIS · Demo Video</span>
+          <div class="play-circle">
+            <svg width="28" height="28" fill="#000" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+          </div>
+          <span class="video-poster-hint">Click to play</span>
+        </div>
+        <!-- Spinner shown between click and iframe load -->
+        <div class="video-spinner" id="videoSpinner">
+          <div class="spinner-ring"></div>
+        </div>
       </div>
     </div>
   </section>
@@ -1320,6 +1426,34 @@
     const ro = new ResizeObserver(() => { resize(); });
     ro.observe(canvas);
   })();
+
+  // ── Video lazy-load ───────────────────────────────────────────────
+  function loadVideo() {
+    const wrapper = document.getElementById('videoWrapper');
+    const poster  = document.getElementById('videoPoster');
+    const spinner = document.getElementById('videoSpinner');
+
+    // Hide poster, show spinner
+    poster.style.opacity = '0';
+    poster.style.pointerEvents = 'none';
+    spinner.classList.add('active');
+
+    // Inject iframe
+    const iframe = document.createElement('iframe');
+    iframe.src = 'https://drive.google.com/file/d/1H6lsAtP0CQ6hERxCvPfJ8PBbqtR_ziUJ/preview';
+    iframe.allow = 'autoplay';
+    iframe.allowFullscreen = true;
+    iframe.title = 'NAVIS Point Cloud Player Demo Video';
+
+    iframe.addEventListener('load', () => {
+      spinner.classList.remove('active');
+      poster.remove();
+      // Small rAF delay so the transition is visible
+      requestAnimationFrame(() => requestAnimationFrame(() => iframe.classList.add('loaded')));
+    });
+
+    wrapper.appendChild(iframe);
+  }
 
   // ── BibTeX copy ───────────────────────────────────────────────────
   function copyBibtex() {
